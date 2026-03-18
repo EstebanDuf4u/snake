@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <title>snake.py</title>
+  <script src="/brython.js"></script>
+  <script src="/brython_stdlib.js"></script>
+  <style>
+    :root {
+      --py-blue:    #3776AB;
+      --py-yellow:  #FFD43B;
+      --py-blue-lo: rgba(55, 118, 171, 0.18);
+      --py-yel-lo:  rgba(255, 212, 59, 0.15);
+      --bg:         #0d1117;
+      --surface:    #131920;
+      --surface2:   #1a2332;
+      --border:     rgba(55, 118, 171, 0.25);
+      --border-hi:  rgba(55, 118, 171, 0.55);
+      --text:       #e6edf3;
+      --muted:      rgba(139, 180, 220, 0.5);
+      --comment:    #6a9fb5;
+      --string:     #FFD43B;
+      --keyword:    #3776AB;
+      --radius:     10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 48px;
+      gap: 20px;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────────────────────── */
+    header {
+      width: min(1020px, 100%);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .py-logo {
+      display: flex;
+      gap: 3px;
+    }
+    .py-logo__b {
+      width: 22px; height: 22px;
+      background: var(--py-blue);
+      border-radius: 4px 4px 0 4px;
+      position: relative;
+    }
+    .py-logo__y {
+      width: 22px; height: 22px;
+      background: var(--py-yellow);
+      border-radius: 0 4px 4px 4px;
+      position: relative;
+    }
+
+    .file-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .file-tab .ext { color: var(--py-yellow); }
+    .file-tab .dot { color: var(--muted); }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+    .score-box {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .score-box__label {
+      font-size: 11px;
+      color: var(--comment);
+    }
+    .score-box__label::before { content: '# '; }
+    .score-box__val {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--py-yellow);
+      text-shadow: 0 0 14px rgba(255,212,59,0.4);
+    }
+
+    /* ── LAYOUT ──────────────────────────────────────────────────────────── */
+    #wrap {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      width: min(1020px, 100%);
+    }
+
+    /* ── CANVAS ──────────────────────────────────────────────────────────── */
+    #canvas-wrap {
+      position: relative;
+      flex-shrink: 0;
+    }
+    canvas {
+      display: block;
+      width: 600px;
+      height: 600px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-hi);
+      box-shadow:
+        0 0 0 1px rgba(0,0,0,0.5),
+        0 12px 40px rgba(0,0,0,0.6),
+        0 0 40px rgba(55,118,171,0.07);
+      image-rendering: pixelated;
+    }
+    #status {
+      position: absolute;
+      bottom: 10px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 11px;
+      color: var(--py-yellow);
+      pointer-events: none;
+      letter-spacing: .04em;
+      text-shadow: 0 0 10px rgba(255,212,59,0.5);
+    }
+
+    /* ── PANEL ───────────────────────────────────────────────────────────── */
+    #panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    /* ── CARD ────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    /* ligne colorée en haut à la VSCode */
+    .card.blue  { border-top: 2px solid var(--py-blue); }
+    .card.yellow { border-top: 2px solid var(--py-yellow); }
+
+    .card-header {
+      padding: 8px 14px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-header::before {
+      content: '▸';
+      color: var(--py-blue);
+      font-size: 12px;
+    }
+    .card-body { padding: 14px; }
+
+    /* ── INPUTS ──────────────────────────────────────────────────────────── */
+    .field { margin-bottom: 12px; }
+    .field__label {
+      font-size: 10px;
+      color: var(--comment);
+      margin-bottom: 5px;
+      display: block;
+    }
+    .field__label::before { content: '# '; }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      background: rgba(6,12,22,0.7);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      transition: border-color .2s, box-shadow .2s;
+      overflow: hidden;
+    }
+    .input-row:focus-within {
+      border-color: var(--py-blue);
+      box-shadow: 0 0 0 3px rgba(55,118,171,0.12);
+    }
+    .input-row.input-error {
+      border-color: #f44 !important;
+      box-shadow: 0 0 0 3px rgba(255,68,68,0.12) !important;
+      animation: shake .3s ease;
+    }
+    .input-prompt {
+      padding: 0 8px 0 11px;
+      font-size: 13px;
+      color: var(--py-blue);
+      user-select: none;
+      flex-shrink: 0;
+    }
+    input[type="text"],
+    input[type="password"] {
+      flex: 1;
+      font: inherit;
+      font-size: 13px;
+      background: transparent;
+      border: none;
+      color: var(--py-yellow);
+      padding: 9px 10px 9px 0;
+      outline: none;
+    }
+    input[type="text"]::placeholder,
+    input[type="password"]::placeholder { color: rgba(139,180,220,0.3); }
+
+    .pass-toggle {
+      background: none;
+      border: none;
+      padding: 0 10px 0 4px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: color .15s;
+      border-radius: 0;
+    }
+    .pass-toggle:hover { color: var(--py-yellow); }
+
+    #auth-pass-row {
+      border-color: rgba(255,212,59,0.25);
+    }
+    #auth-pass-row:focus-within {
+      border-color: var(--py-yellow);
+      box-shadow: 0 0 0 3px rgba(255,212,59,0.1);
+    }
+    .lock-icon {
+      padding: 0 8px 0 11px;
+      font-size: 12px;
+      color: var(--py-yellow);
+      opacity: 0.7;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25%      { transform: translateX(-5px); }
+      75%      { transform: translateX(5px); }
+    }
+
+    /* ── BUTTONS ─────────────────────────────────────────────────────────── */
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    button {
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      padding: 9px 10px;
+      outline: none;
+      letter-spacing: .04em;
+      transition: all .18s;
+    }
+    #solo {
+      border-color: rgba(55,118,171,0.45);
+      color: #80b3d9;
+    }
+    #solo:hover {
+      background: var(--py-blue-lo);
+      border-color: var(--py-blue);
+      color: #b8d4ed;
+      box-shadow: 0 0 14px rgba(55,118,171,0.2);
+    }
+    #ws {
+      border-color: rgba(255,212,59,0.35);
+      color: rgba(255,212,59,0.7);
+    }
+    #ws:hover {
+      background: var(--py-yel-lo);
+      border-color: var(--py-yellow);
+      color: var(--py-yellow);
+      box-shadow: 0 0 14px rgba(255,212,59,0.15);
+    }
+
+    /* ── ROOM CODE ───────────────────────────────────────────────────────── */
+    /* hérite du style .field + .input-row */
+
+    /* ── KBD ─────────────────────────────────────────────────────────────── */
+    .kbd-hint {
+      font-size: 10px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .kbd-hint span { margin-left: 4px; }
+    kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px; height: 20px;
+      border: 1px solid rgba(55,118,171,0.4);
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      font-size: 10px;
+      background: rgba(55,118,171,0.07);
+      color: rgba(100,160,210,0.7);
+    }
+
+    /* ── LEADERBOARD ─────────────────────────────────────────────────────── */
+    #lb-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .lb-tab {
+      flex: 1;
+      font-size: 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 5px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .lb-tab:hover { border-color: var(--py-yellow); color: var(--py-yellow); }
+    .lb-tab-active {
+      background: var(--py-yel-lo);
+      border-color: rgba(255,212,59,0.5);
+      color: var(--py-yellow);
+    }
+
+    #lb { display: flex; flex-direction: column; gap: 3px; }
+
+    .lb-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      font-size: 12px;
+      transition: background .15s, border-color .15s;
+    }
+    .lb-row:hover {
+      background: rgba(55,118,171,0.07);
+      border-color: var(--border);
+    }
+    .lb-rank {
+      font-size: 11px;
+      font-weight: bold;
+      width: 24px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .rank-1 { color: var(--py-yellow); text-shadow: 0 0 8px rgba(255,212,59,0.5); }
+    .rank-2 { color: #b0bec5; }
+    .rank-3 { color: #a0785a; }
+    .rank-n { color: var(--muted); }
+
+    .lb-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text);
+    }
+    .lb-name::before { content: '"'; color: var(--comment); }
+    .lb-name::after  { content: '"'; color: var(--comment); }
+
+    .lb-score {
+      font-weight: bold;
+      color: var(--py-blue);
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .lb-empty {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      padding: 14px 0;
+    }
+    .lb-empty::before { content: '# '; }
+
+    /* ── AUTH ────────────────────────────────────────────────────────────── */
+    #auth-tabs-row { display: flex; gap: 6px; margin-bottom: 8px; }
+    .auth-tab {
+      flex: 1; font: inherit; font-size: 10px; letter-spacing: .06em;
+      text-transform: uppercase; padding: 5px 8px; border-radius: 6px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--muted); cursor: pointer; transition: all .15s;
+    }
+    .auth-tab:hover { border-color: var(--py-blue); color: #b8d4ed; }
+    .auth-tab-on { background: var(--py-blue-lo); border-color: rgba(55,118,171,0.55); color: #b8d4ed; }
+    #auth-submit-btn {
+      width: 100%; padding: 8px; font: inherit; font-size: 12px; cursor: pointer;
+      border-radius: 7px; border: 1px solid rgba(55,118,171,0.45);
+      background: var(--py-blue-lo); color: #b8d4ed; transition: all .18s; letter-spacing: .04em;
+    }
+    #auth-submit-btn:hover { background: rgba(55,118,171,0.28); color: #d0e8f8; }
+    #auth-in-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+    .auth-online-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #4caf50; box-shadow: 0 0 6px #4caf50; flex-shrink: 0;
+    }
+    #auth-display-name { font-size: 12px; font-weight: bold; flex: 1; }
+    #auth-logout-btn {
+      font: inherit; font-size: 10px; padding: 2px 8px; cursor: pointer;
+      border-radius: 5px; border: 1px solid rgba(255,68,68,0.3);
+      background: transparent; color: rgba(255,100,100,0.7); transition: all .15s;
+    }
+    #auth-logout-btn:hover { border-color: #f44; color: #f44; }
+    .auth-sep { height: 1px; background: var(--border); margin: 10px 0 8px; }
+
+    /* ── SCORE FLASH ─────────────────────────────────────────────────────── */
+    .score-flash {
+      animation: score-flash .35s ease;
+    }
+    @keyframes score-flash {
+      0%   { transform: scale(1);    color: var(--py-yellow); }
+      40%  { transform: scale(1.45); color: #fff;             }
+      100% { transform: scale(1);    color: var(--py-yellow); }
+    }
+
+    /* ── D-PAD ───────────────────────────────────────────────────────────── */
+    #dpad {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      margin-top: 18px;
+      user-select: none;
+    }
+    .dpad-row {
+      display: flex;
+      gap: 0;
+    }
+    .dpad-btn {
+      width: 72px;
+      height: 72px;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      border: 1px solid rgba(55,118,171,0.3);
+      color: #7ab3d9;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      transition: background .1s, color .1s;
+      position: relative;
+    }
+    /* forme en croix */
+    .dpad-btn[data-dir="up"]    { border-radius: 14px 14px 4px 4px; }
+    .dpad-btn[data-dir="down"]  { border-radius: 4px 4px 14px 14px; }
+    .dpad-btn[data-dir="left"]  { border-radius: 14px 4px 4px 14px; }
+    .dpad-btn[data-dir="right"] { border-radius: 4px 14px 14px 4px; }
+    .dpad-center {
+      width: 72px; height: 72px;
+      background: var(--surface);
+      border: 1px solid rgba(55,118,171,0.15);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .dpad-center::after {
+      content: '';
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: rgba(55,118,171,0.25);
+    }
+    .dpad-btn:active {
+      background: rgba(55,118,171,0.3);
+      color: var(--py-yellow);
+    }
+
+    /* ── RESPONSIVE ──────────────────────────────────────────────────────── */
+    @media (max-width: 720px) {
+      body { padding: 10px 8px 40px; gap: 12px; }
+
+      header {
+        padding: 8px 12px;
+      }
+
+      /* sur mobile : layout en colonne, canvas en pleine largeur */
+      #wrap {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      #canvas-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      canvas {
+        width: min(92vw, 600px);
+        height: min(92vw, 600px);
+      }
+
+      #dpad { display: flex; }
+
+      /* panel en dessous */
+      #panel { width: 100%; }
+
+      /* leaderboard limité en hauteur */
+      #lb { max-height: 180px; overflow-y: auto; }
+    }
+  </style>
+</head>
+<body onload="brython()">
+
+  <header>
+    <div class="header-left">
+      <div class="py-logo">
+        <div class="py-logo__b"></div>
+        <div class="py-logo__y"></div>
+      </div>
+      <div class="file-tab">
+        <span>snake</span><span class="dot">.</span><span class="ext">py</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="score-box">
+        <span class="score-box__label">score</span>
+        <span class="score-box__val" id="score">0</span>
+      </div>
+    </div>
+  </header>
+
+  <div id="wrap">
+
+    <div id="canvas-wrap">
+      <canvas id="cv" width="600" height="600"></canvas>
+      <div id="status"></div>
+      <div id="dpad">
+        <div class="dpad-row">
+          <div class="dpad-center"></div>
+          <button class="dpad-btn" data-dir="up">▲</button>
+          <div class="dpad-center"></div>
+        </div>
+        <div class="dpad-row">
+          <button class="dpad-btn" data-dir="left">◀</button>
+          <div class="dpad-center"></div>
+          <button class="dpad-btn" data-dir="right">▶</button>
+        </div>
+        <div class="dpad-row">
+          <div class="dpad-center"></div>
+          <button class="dpad-btn" data-dir="down">▼</button>
+          <div class="dpad-center"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel">
+
+      <!-- player card -->
+      <div class="card blue">
+        <div class="card-header">player.py</div>
+        <div class="card-body">
+
+          <!-- Auth -->
+          <div id="auth-in-row">
+            <span class="auth-online-dot"></span>
+            <span id="auth-display-name"></span>
+            <button id="auth-logout-btn">déconnexion</button>
+          </div>
+          <div class="auth-sep"></div>
+
+          <input id="name" type="hidden" value="Player">
+
+          <div class="btn-group">
+            <button id="solo">▶ solo()</button>
+            <button id="ws">⚔ multi()</button>
+          </div>
+          <button id="ready-btn" style="display:none;width:100%;padding:9px;margin-bottom:10px;font:inherit;font-size:13px;cursor:pointer;border-radius:7px;border:1px solid rgba(76,175,80,0.5);background:rgba(76,175,80,0.12);color:#81c784;letter-spacing:.04em;transition:all .18s;" onmouseover="if(!this.disabled)this.style.background='rgba(76,175,80,0.22)'" onmouseout="if(!this.disabled)this.style.background='rgba(76,175,80,0.12)'">Prêt !</button>
+
+          <div class="field" style="margin-bottom:12px">
+            <label class="field__label">room_code <span style="opacity:.55">= None  # optionnel</span></label>
+            <div class="input-row">
+              <span class="input-prompt">>>></span>
+              <input id="room-code" type="text" maxlength="12"
+                placeholder="ex: SHARK42"
+                style="text-transform:uppercase;letter-spacing:.1em"
+                oninput="this.value=this.value.toUpperCase()">
+            </div>
+          </div>
+
+          <div class="kbd-hint">
+            <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>
+            <span>diriger le serpent</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- leaderboard card -->
+      <div class="card yellow">
+        <div class="card-header">leaderboard.json</div>
+        <div class="card-body">
+          <div id="lb-tabs">
+            <button id="lb-btn-all" class="lb-tab lb-tab-active">Tout temps</button>
+            <button id="lb-btn-month" class="lb-tab">Ce mois</button>
+          </div>
+          <div id="lb"><div class="lb-empty">chargement...</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <button id="start" style="display:none"></button>
+  <script type="text/python" src="snake.py"></script>
+</body>
+</html>
