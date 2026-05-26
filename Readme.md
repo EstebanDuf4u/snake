@@ -10,4 +10,4 @@ l’exécution de Python dans un environnement web
 la manipulation du DOM via Brython
 la logique temps réel d’un jeu classique
 
-Un petit projet fun, entre nostalgie et expérimentation, pour transformer un Snake classique en Snake version Python mdrr 🐍
+Un petit projet fun, entre nostalgie et expérimentation, pour transformer un Snake classique en Snake version Python 
