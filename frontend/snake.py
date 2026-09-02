@@ -21,6 +21,8 @@ CELL = cv.width // GRID
 t0   = 0
 ws   = None
 mode = "solo"
+auth_token = window.localStorage.getItem("snake_token")
+auth_username = window.localStorage.getItem("snake_username")
 
 game_state = {
     "snake": [(5, 5), (6, 5), (7, 5)],
@@ -93,58 +95,9 @@ def _predict_snake(snake, direction):
     return list(snake[1:]) + [new_head]
 
 
-# ── Auth ──────────────────────────────────────────────────────────────────────
-_auth_token    = [window.localStorage.getItem("dgames_token") or ""]
-_auth_username = [window.localStorage.getItem("dgames_username") or ""]
-
-PORTAL_URL = "https://dgames.noryx.fr"
-
-def _auth_show():
-    document["auth-display-name"].text = _auth_username[0]
-    document["name"].value             = _auth_username[0]
-    document["name"].attrs["disabled"] = True
-    for btn_id in ["solo", "ws"]:
-        if "disabled" in document[btn_id].attrs:
-            del document[btn_id].attrs["disabled"]
-        document[btn_id].style.opacity = "1"
-        document[btn_id].title = ""
-
-async def _auth_logout(ev):
-    _auth_token[0]    = ""
-    _auth_username[0] = ""
-    window.localStorage.removeItem("dgames_token")
-    window.localStorage.removeItem("dgames_username")
-    try:
-        await window.fetch("/auth/logout", {"method": "POST", "credentials": "include"})
-    except Exception:
-        pass
-    window.location.href = PORTAL_URL
-
-document["auth-logout-btn"].bind("click", lambda ev: aio.run(_auth_logout(ev)))
-
-async def _auth_init():
-    """Vérifie la session. Redirige vers le portail si non connecté."""
-    if not _auth_username[0]:
-        try:
-            r = await window.fetch("/auth/me", {"method": "GET", "credentials": "include"})
-            if r.ok:
-                data = await r.json()
-                _auth_username[0] = data["username"]
-                window.localStorage.setItem("dgames_username", data["username"])
-            else:
-                window.location.href = PORTAL_URL
-                return
-        except Exception:
-            window.location.href = PORTAL_URL
-            return
-    _auth_show()
-
-aio.run(_auth_init())
-
-
 # ── localStorage : restaurer le pseudo ───────────────────────────────────────
 _saved_name = window.localStorage.getItem("snake_pseudo")
-if _saved_name and _saved_name.lower() != "player" and not _auth_username[0]:
+if _saved_name and _saved_name.lower() != "player":
     document["name"].value = _saved_name
 
 
@@ -179,13 +132,13 @@ async def load_leaderboard(period=None):
 
 async def submit_score(name, score_value, duration_ms):
     payload = {"name": name, "score": score_value, "duration_ms": duration_ms}
-    headers = {"Content-Type": "application/json"}
-    if _auth_token[0]:
-        headers["Authorization"] = f"Bearer {_auth_token[0]}"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {auth_token}",
+    }
     r = await window.fetch("/api/score", {
         "method": "POST",
         "headers": headers,
-        "credentials": "include",
         "body": json.dumps(payload),
     })
     if not r.ok:
@@ -985,9 +938,102 @@ for _btn in document.select("[data-dir]"):
     _btn.bind("click", lambda ev, d=_dir: send_direction(d))
 
 
-# ── Connexion ─────────────────────────────────────────────────────────────────
+# ── Authentification locale ───────────────────────────────────────────────────
+auth_signup = [False]
+
+
+def show_auth_message(message, error=False):
+    el = document["auth-message"]
+    el.text = message
+    el.style.color = "#ff7777" if error else "#81c784"
+
+
+def set_authenticated(username, token):
+    global auth_token, auth_username
+    auth_token = token
+    auth_username = username
+    window.localStorage.setItem("snake_token", token)
+    window.localStorage.setItem("snake_username", username)
+    document["name"].value = username
+    document["auth-out"].style.display = "none"
+    document["auth-in"].style.display = "block"
+    document["auth-display-name"].text = username
+
+
+def clear_authenticated(ev=None):
+    global auth_token, auth_username
+    auth_token = None
+    auth_username = None
+    window.localStorage.removeItem("snake_token")
+    window.localStorage.removeItem("snake_username")
+    document["auth-out"].style.display = "block"
+    document["auth-in"].style.display = "none"
+    document["name"].value = "Player"
+
+
+async def submit_auth(ev=None):
+    username = document["auth-username"].value.strip()
+    password = document["auth-password"].value
+    if not username or not password:
+        show_auth_message("pseudo et mot de passe requis", True)
+        return
+    endpoint = "/api/signup" if auth_signup[0] else "/api/login"
+    try:
+        response = await window.fetch(endpoint, {
+            "method": "POST",
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"username": username, "password": password}),
+        })
+        response_text = await response.text()
+        try:
+            data = json.loads(response_text)
+        except Exception:
+            data = {}
+        if not response.ok:
+            show_auth_message(data.get("detail", "authentification impossible"), True)
+            return
+        if auth_signup[0]:
+            show_auth_message("compte cree, connexion...", False)
+            login_response = await window.fetch("/api/login", {
+                "method": "POST",
+                "headers": {"Content-Type": "application/json"},
+                "body": json.dumps({"username": username, "password": password}),
+            })
+            login_text = await login_response.text()
+            try:
+                data = json.loads(login_text)
+            except Exception:
+                data = {}
+            if not login_response.ok:
+                show_auth_message("compte cree, connecte-toi", False)
+                return
+        set_authenticated(data["username"], data["token"])
+    except Exception as error:
+        print("Erreur auth:", error)
+        show_auth_message("API indisponible", True)
+
+
+def select_auth_tab(signup):
+    auth_signup[0] = signup
+    document["auth-login-tab"].classList.toggle("auth-tab-on", not signup)
+    document["auth-signup-tab"].classList.toggle("auth-tab-on", signup)
+    document["auth-submit-btn"].text = "creer le compte" if signup else "se connecter"
+    show_auth_message("")
+
+
+document["auth-login-tab"].bind("click", lambda ev: select_auth_tab(False))
+document["auth-signup-tab"].bind("click", lambda ev: select_auth_tab(True))
+document["auth-submit-btn"].bind("click", lambda ev: aio.run(submit_auth()))
+document["auth-logout-btn"].bind("click", clear_authenticated)
+document["auth-password"].bind("keydown", lambda ev: aio.run(submit_auth()) if ev.key == "Enter" else None)
+
+if auth_token and auth_username:
+    set_authenticated(auth_username, auth_token)
+
+
+# ── Connexion au jeu ──────────────────────────────────────────────────────────
 def validate_name():
-    return bool(document["name"].value.strip())
+    return bool(auth_token and auth_username)
 
 
 def connect():
@@ -1015,6 +1061,7 @@ def connect():
 def set_mode_and_connect(new_mode):
     global mode
     if not validate_name():
+        show_auth_message("connecte-toi pour jouer", True)
         return
     mode = new_mode
     game_state["mode"] = new_mode
@@ -1024,6 +1071,8 @@ def set_mode_and_connect(new_mode):
 def game_start(ev):
     if ws is None and validate_name():
         connect()
+    elif not validate_name():
+        show_auth_message("connecte-toi pour jouer", True)
 
 
 def send_ready(ev):

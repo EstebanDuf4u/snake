@@ -591,15 +591,34 @@
         <div class="card-header">player.py</div>
         <div class="card-body">
 
-          <!-- Auth -->
-          <div id="auth-in-row">
-            <span class="auth-online-dot"></span>
-            <span id="auth-display-name"></span>
-            <button id="auth-logout-btn">déconnexion</button>
+          <input id="name" type="hidden" value="Player">
+
+          <div id="auth-out">
+            <div id="auth-tabs-row">
+              <button id="auth-login-tab" class="auth-tab auth-tab-on">connexion</button>
+              <button id="auth-signup-tab" class="auth-tab">inscription</button>
+            </div>
+            <div class="field">
+              <label class="field__label">pseudo</label>
+              <div class="input-row">
+                <span class="input-prompt">>>></span>
+                <input id="auth-username" type="text" maxlength="24" placeholder="ton pseudo">
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label">mot de passe</label>
+              <div class="input-row" id="auth-pass-row">
+                <span class="lock-icon">*</span>
+                <input id="auth-password" type="password" maxlength="128" placeholder="6 caracteres minimum">
+              </div>
+            </div>
+            <button id="auth-submit-btn">se connecter</button>
+            <div id="auth-message" class="field__label" style="margin:8px 0 0;min-height:14px"></div>
+          </div>
+          <div id="auth-in" style="display:none">
+            <div id="auth-in-row"><span class="auth-online-dot"></span><span id="auth-display-name"></span><button id="auth-logout-btn">deconnexion</button></div>
           </div>
           <div class="auth-sep"></div>
-
-          <input id="name" type="hidden" value="Player">
 
           <div class="btn-group">
             <button id="solo">▶ solo()</button>
